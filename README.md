@@ -1,14 +1,45 @@
 <div align="center">
   
 # LAMBDA - LArge Model-based Data Analysis System
+[![Online App](https://img.shields.io/badge/Online%20App-Live%20Demo-ff6b6b?style=flat&logo=rocket&logoColor=white)](https://lambda.com.ai)
 [![Docs](https://img.shields.io/badge/Docs-Online-blue)](https://ama-cmfai.github.io/LAMBDA-Docs/#/)
 [![Project](https://img.shields.io/badge/Project-Webpage-brightgreen)](https://www.polyu.edu.hk/ama/cmfai/lambda.html)
 [![Paper](https://img.shields.io/badge/Paper-arXiv-red)](https://arxiv.org/pdf/2407.17535)
-[![MacOS](https://img.shields.io/badge/Download-macOS-black?logo=apple)](https://github.com/AMA-CMFAI/LAMBDA/releases/download/app/LAMBDA-MacOS-beta-v0.0.2.zip)
-[![Windows](https://img.shields.io/badge/Download-Windows-blue?logo=windows)](https://github.com/AMA-CMFAI/LAMBDA/releases/download/app/LAMBDA-Windows-beta-v0.0.2.zip)
 
 </div>
 
+# 🚀 LAMBDA Web App Official Launch
+
+<p align="center">
+  <img src="https://lambda.com.ai/LAMBDA_logo.gif" width="120" alt="LAMBDA Logo">
+</p>
+
+
+## 🌐 Access
+
+👉 **https://lambda.com.ai**
+
+## 🎫 Invitation Code
+
+LAMBDA is currently in **beta testing**, and registration requires an invitation code:
+`
+LAMBDA-2024-BETA
+`
+
+> Limited to **200 users** on a first-come, first-served basis.
+
+## 📝 Registration Steps
+
+1. Visit https://lambda.com.ai  
+2. Click **Register**  
+3. Enter your email, password, and name  
+4. Input the invitation code: `LAMBDA-2024-BETA`  
+5. Click **Send Code** to receive a verification email  
+6. Enter the 6-digit verification code to complete registration  
+
+
+---
+## Github Version
 <body>
 <!-- <img src="https://github.com/user-attachments/assets/df454158-79e4-4da4-ae03-eb687fe02f16" style="width: 80%"> -->
 <!-- <p align="center">
