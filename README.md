@@ -187,6 +187,17 @@ Thank the contributors and the communities for their support and feedback.
   year={2025},
   publisher={Taylor \& Francis}
 }
+
+@article{sun2026rejoinder,
+  title={Rejoinder to the Discussions on “LAMBDA: A Large Model Based Data Agent”},
+  author={Sun, Maojun and Han, Ruijian and Jiang, Binyan and Qi, Houduo and Sun, Defeng and Yuan, Yancheng and Huang, Jian},
+  journal={Journal of the American Statistical Association},
+  volume={121},
+  number={553},
+  pages={36--43},
+  year={2026},
+  publisher={Taylor \& Francis}
+}
 ```
 ## Star History
 
