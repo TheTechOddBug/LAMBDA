@@ -1,19 +1,16 @@
-import torch
-import sys
-from sentence_transformers import SentenceTransformer, util
-import numpy as np
 # from knw import KNW_INJECTION, knowledge_injection
-from prompt_engineering.prompts import PMT_KNW_IN_CORE, PMT_KNW_IN_FULL
 # from config import rag_mode
-from knowledge_integration.ncm import Nearest_Correlation_Matrix
-from knowledge_integration.nn_network import nn_networks
-from knowledge_integration.pami import pattern_mining
-from kernel import execute
 
 
 KNW_INJECTION = {}
+embeding_model = None
+st_util = None
 
 def knowledge_register():
+    from knowledge_integration.ncm import Nearest_Correlation_Matrix
+    from knowledge_integration.nn_network import nn_networks
+    from knowledge_integration.pami import pattern_mining
+
     ncm = Nearest_Correlation_Matrix()
     ncm_key = ncm.name+ncm.description
     KNW_INJECTION[ncm_key] = ncm
@@ -24,11 +21,20 @@ def knowledge_register():
     pami_key = pami.name+pami.description
     KNW_INJECTION[pami_key] = pami
 
-embeding_model = SentenceTransformer('all-MiniLM-L6-v2')
+def get_embedding_model():
+    global embeding_model, st_util
+    if embeding_model is None:
+        from sentence_transformers import SentenceTransformer, util
+        st_util = util
+        embeding_model = SentenceTransformer('all-MiniLM-L6-v2')
+    return embeding_model
 
 def search_knowledge(user_input, knowledge_embeddings, knowledge_keys):
-    input_embedding = embeding_model.encode(user_input, convert_to_tensor=True)
-    similarities_list = util.pytorch_cos_sim(input_embedding, knowledge_embeddings)
+    import torch
+    import numpy as np
+
+    input_embedding = get_embedding_model().encode(user_input, convert_to_tensor=True)
+    similarities_list = st_util.pytorch_cos_sim(input_embedding, knowledge_embeddings)
     if torch.max(similarities_list) > 0.5:
         best_match_idx = np.argmax(similarities_list.cpu())
         best_match_key = knowledge_keys[best_match_idx]
@@ -38,6 +44,9 @@ def search_knowledge(user_input, knowledge_embeddings, knowledge_keys):
 
 
 def format_code_snaps(knw, kernel):
+    from prompt_engineering.prompts import PMT_KNW_IN_CORE, PMT_KNW_IN_FULL
+    from kernel import execute
+
     desc = knw.description
     core_code = knw.get_core_function()
     if knw.mode == 'full':
@@ -53,13 +62,12 @@ def format_code_snaps(knw, kernel):
         raise ValueError(f"Invalid mode: {knw.mode}, please choose from ['full', 'core'].")
 
 
-def retrieval_knowledge(instruction, kernel): # return code_snaps and mode: 'full' or runnable code in 'core'. Nothing retrieval, return None
+def retrieval_knowledge(instruction, kernel=None): # return code_snaps and mode: 'full' or runnable code in 'core'. Nothing retrieval, return None
     knowledge_register()
     knowledge_keys = list(KNW_INJECTION.keys())
-    knowledge_embeddings = embeding_model.encode(knowledge_keys, convert_to_tensor=True)
+    knowledge_embeddings = get_embedding_model().encode(knowledge_keys, convert_to_tensor=True)
     best_key, best_knw_object = search_knowledge(instruction, knowledge_embeddings, knowledge_keys)
     if best_key:
         return format_code_snaps(best_knw_object, kernel)
     else:
         return None
-

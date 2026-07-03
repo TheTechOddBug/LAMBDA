@@ -28,6 +28,7 @@ class Conversation:
         self.session_cache_path = config["session_cache_path"]
         self.chat_history_display = config["chat_history_display"] if "chat_history_display" in config else []
         self.retrieval = self.config['retrieval']
+        self.always_review = self.config.get('always_review', self.config.get('inspector_review', False))
         self.kernel = CodeKernel(session_cache_path=self.session_cache_path, max_exe_time=config['max_exe_time'])
         self.max_attempts = config['max_attempts']
         self.error_count = 0
@@ -82,6 +83,7 @@ class Conversation:
             "session_cache_path": self.session_cache_path,
             "chat_history_display": self.chat_history_display,
             "retrieval": self.retrieval,
+            "always_review": self.always_review,
             "max_attempts": self.max_attempts,
             "error_count": self.error_count,
             "repair_count": self.repair_count,
@@ -100,9 +102,45 @@ class Conversation:
                    "content": CODE_FIX.format(bug_code=bug_code, error_message=error_msg, fix_method=fix_method)}
         self.programmer.messages.append(message)
 
-    def add_inspector_msg(self, bug_code: str, error_msg: str, role="user"):
-        message = {"role": role, "content": CODE_INSPECT.format(bug_code=bug_code, error_message=error_msg)}
+    def add_inspector_msg(self, code: str, execution_result: str, role="user"):
+        message = {"role": role, "content": CODE_INSPECT.format(
+            task_context=self._get_programmer_task_context(),
+            code=code,
+            execution_result=execution_result
+        )}
         self.inspector.messages.append(message)
+
+    def _get_programmer_task_context(self, max_messages=8):
+        messages = [
+            message for message in self.programmer.messages
+            if message.get("role") in ("user", "assistant")
+        ]
+        recent_messages = messages[-max_messages:]
+        context = []
+        for message in recent_messages:
+            role = message.get("role", "unknown")
+            content = message.get("content", "")
+            context.append(f"{role}: {content}")
+        return "\n\n".join(context)
+
+    def inspect_code_execution(self, code: str, execution_result: str):
+        self.add_inspector_msg(code, execution_result)
+        response = self.inspector._call_chat_model()
+        if response is None:
+            insp_response = "Inspector check failed. Review the execution result yourself before deciding whether to finalize or revise."
+        else:
+            insp_response = response.choices[0].message.content
+        self.inspector.messages.append({"role": "assistant", "content": insp_response})
+        return insp_response
+
+    def _has_execution_error(self, sign):
+        return bool(sign) and 'error' in sign
+
+    def _build_inspection_result(self, msg_llm, exe_res):
+        inspect_result = msg_llm
+        if exe_res:
+            inspect_result += f"\n\nDisplay result:\n{exe_res}"
+        return inspect_result
 
     def run_code(self, code):
         try:
@@ -195,46 +233,23 @@ class Conversation:
             print("is_python:", is_python)
 
             if is_python:
-                chat_history_display[-1][1] += '\n🖥️ Execute code...'
+                chat_history_display[-1][1] += display_status('🖥️ Execute code...')
                 yield chat_history_display
                 sign, msg_llm, exe_res = self.run_code(code)
                 print("Executing result:", exe_res)
-                if sign and 'error' not in sign:
-                    yield from self._handle_execution_result(exe_res, msg_llm, chat_history_display)
-                else:
+
+                if self._has_execution_error(sign):
                     self.error_count += 1
-                    round = 0
-                    while 'error' in sign and round < self.max_attempts:
-                        chat_history_display[-1][1] = f'⭕ Execution error, try to repair the code, attempts: {round + 1}....\n'
-                        yield chat_history_display
-                        self.add_inspector_msg(code, msg_llm)
-                        if round == 3:
-                            insp_response = "Try other packages or methods."
-                        else:
-                            insp_response = self.inspector._call_chat_model().choices[0].message.content
-                        self.inspector.messages.append({"role": "assistant", "content": insp_response})
+                    code, sign, msg_llm, exe_res = yield from self._repair_code_until_success(
+                        code, sign, msg_llm, exe_res, chat_history_display
+                    )
 
-                        self.add_programmer_repair_msg(code, msg_llm, insp_response)
-                        prog_response = ''
-                        for message in self.programmer._call_chat_model_streaming():
-                            chat_history_display[-1][1] += message
-                            prog_response += message
-                            yield chat_history_display
-                        chat_history_display[-1][1] += '\n🖥️ Execute code...\n'
-                        yield chat_history_display
-                        self.add_programmer_msg({"role": "assistant", "content": prog_response})
-                        is_python, code = extract_code(prog_response)
-                        if is_python:
-                            sign, msg_llm, exe_res = self.run_code(code)
-                            if sign and 'error' not in sign:
-                                self.repair_count += 1
-                                break
-                        round += 1
+                if self._has_execution_error(sign):
+                    chat_history_display[-1][1] += f"\nSorry, I can't fix the code with {self.max_attempts} attempts, can you help me to modified it or give some suggestions?"
+                    yield chat_history_display
+                    return
 
-                    if round == self.max_attempts:
-                        return prog_response + f"\nSorry, I can't fix the code with {self.max_attempts} attempts, can you help me to modified it or give some suggestions?"
-
-                    yield from self._handle_execution_result(exe_res, msg_llm, chat_history_display)
+                yield from self._handle_review_loop(code, exe_res, msg_llm, chat_history_display)
 
         except Exception as e:
             chat_history_display[-1][1] += "\nSorry, there is an error in the program, please try again."
@@ -244,7 +259,85 @@ class Conversation:
             if self.programmer.messages[-1]["role"] == "user":
                 self.programmer.messages.append({"role": "assistant", "content": f"An error occurred in program: {e}"})
 
-    def _handle_execution_result(self, exe_res, msg_llm, chat_history_display):
+    def _repair_code_until_success(self, code, sign, msg_llm, exe_res, chat_history_display):
+        prog_response = ''
+        round = 0
+        while self._has_execution_error(sign) and round < self.max_attempts:
+            chat_history_display[-1][1] = f'⭕ Execution error, try to repair the code, attempts: {round + 1}....\n'
+            yield chat_history_display
+            chat_history_display[-1][1] += display_status('🔎 Inspector checking code and result...')
+            yield chat_history_display
+
+            insp_response = self.inspect_code_execution(code, self._build_inspection_result(msg_llm, exe_res))
+            self.add_programmer_repair_msg(code, msg_llm, insp_response)
+
+            prog_response = ''
+            for message in self.programmer._call_chat_model_streaming():
+                chat_history_display[-1][1] += message
+                prog_response += message
+                yield chat_history_display
+
+            self.add_programmer_msg({"role": "assistant", "content": prog_response})
+            is_python, code = extract_code(prog_response)
+            if not is_python:
+                msg_llm = "The programmer did not return executable Python code wrapped in ```python```."
+                exe_res = ''
+                sign = ['error']
+                round += 1
+                continue
+
+            chat_history_display[-1][1] += display_status('🖥️ Execute code...')
+            yield chat_history_display
+            sign, msg_llm, exe_res = self.run_code(code)
+            if not self._has_execution_error(sign):
+                self.repair_count += 1
+                break
+            round += 1
+
+        return code, sign, msg_llm, exe_res
+
+    def _handle_review_loop(self, code, exe_res, msg_llm, chat_history_display):
+        review_round = 0
+        while True:
+            insp_response = None
+            if self.always_review:
+                chat_history_display[-1][1] += display_status('🔎 Inspector checking code and result...')
+                yield chat_history_display
+                insp_response = self.inspect_code_execution(
+                    code,
+                    self._build_inspection_result(msg_llm, exe_res)
+                )
+
+            prog_response = yield from self._handle_execution_result(
+                exe_res, msg_llm, chat_history_display, insp_response
+            )
+            is_python, next_code = extract_code(prog_response)
+
+            if not (self.always_review and is_python):
+                break
+
+            review_round += 1
+            if review_round >= self.max_attempts:
+                chat_history_display[-1][1] += f"\nReached inspector review limit ({self.max_attempts}); stopping further review iterations."
+                yield chat_history_display
+                break
+
+            code = next_code
+            chat_history_display[-1][1] += display_status('🖥️ Execute revised code...')
+            yield chat_history_display
+            sign, msg_llm, exe_res = self.run_code(code)
+
+            if self._has_execution_error(sign):
+                self.error_count += 1
+                code, sign, msg_llm, exe_res = yield from self._repair_code_until_success(
+                    code, sign, msg_llm, exe_res, chat_history_display
+                )
+                if self._has_execution_error(sign):
+                    chat_history_display[-1][1] += f"\nSorry, I can't fix the code with {self.max_attempts} attempts, can you help me to modified it or give some suggestions?"
+                    yield chat_history_display
+                    break
+
+    def _handle_execution_result(self, exe_res, msg_llm, chat_history_display, always_review=None):
         chat_history_display[-1][1] += display_exe_results(exe_res)
         yield chat_history_display
 
@@ -252,7 +345,10 @@ class Conversation:
         chat_history_display[-1][1] += f"{link_info}" if display else ''
         yield chat_history_display
 
-        self.add_programmer_msg({"role": "user", "content": RESULT_PROMPT.format(msg_llm)})
+        if always_review:
+            self.add_programmer_msg({"role": "user", "content": INSPECTED_RESULT_PROMPT.format(msg_llm, always_review)})
+        else:
+            self.add_programmer_msg({"role": "user", "content": RESULT_PROMPT.format(msg_llm)})
         prog_response = ''
         for message in self.programmer._call_chat_model_streaming():
             chat_history_display[-1][1] += message
@@ -262,11 +358,12 @@ class Conversation:
         self.add_programmer_msg({"role": "assistant", "content": prog_response})
         chat_history_display[-1][1] = display_suggestions(prog_response, chat_history_display[-1][1])
         yield chat_history_display
+        return prog_response
 
     
     def update_config(self, conv_model, programmer_model, inspector_model, api_key,
                       base_url_conv_model, base_url_programmer, base_url_inspector,
-                      max_attempts, max_exe_time):
+                      max_attempts, max_exe_time, always_review):
 
         if self.config['api_key'] != api_key:
             self.config['api_key'] = api_key
@@ -292,3 +389,9 @@ class Conversation:
 
         if self.max_attempts != max_attempts:
             self.config['max_attempts'] = max_attempts
+            self.max_attempts = max_attempts
+
+        if self.always_review != always_review:
+            self.always_review = always_review
+            self.config['always_review'] = always_review
+            self.config.pop('inspector_review', None)

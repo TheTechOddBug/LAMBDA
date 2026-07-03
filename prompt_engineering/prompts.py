@@ -46,19 +46,46 @@ User: 'This is the executing result by computer (If nothing is printed, it maybe
 Assistant: "The dataset appears to be the famous Iris dataset, which is a classic multiclass classification problem. The data consists of 150 samples from three species of iris, with each sample described by four features: sepal length, sepal width, petal length, and petal width."
 '''
 
-RESULT_PROMPT = "This is the executing result by computer:\n{}.\n\nNow: You should reformat the tabular result (if any) in MarkDown format. Then, you should use 1-3 sentences to explain the results. Finally, You should give suggestions for next step based on the chat history. You should list at least 3 points with format like:\n Next, you can:\n[1]Standardize the data in the next step.\n[2]Do outlier detection for the data.\n[3]Train a neural network model."
+RESULT_PROMPT = "This is the executing result by computer:\n{}.\n\nThe raw execution output is already shown to the user in a collapsible execution-results panel. Do not repeat the full raw console output outside that panel. Now: summarize the key result in 1-3 sentences. If a small table is necessary for understanding, include only a concise Markdown table. Finally, give suggestions for next step based on the chat history. You should list at least 3 points with exactly this bracket-number format, not a Markdown numbered list:\n Next, you can:\n[1]Standardize the data in the next step.\n[2]Do outlier detection for the data.\n[3]Train a neural network model."
+
+INSPECTED_RESULT_PROMPT = """This is the executing result by computer:
+{}.
+
+This is the inspector's review after checking the user's request, your code, and the execution result:
+{}.
+
+Now: Use the execution result and the inspector's review to decide whether the user's request has been completed. The raw execution output is already shown to the user in a collapsible execution-results panel, so do not repeat the full raw console output outside that panel.
+- If the request has been completed and the inspector says it is appropriate to finish, summarize the key result in 1-3 sentences. If a small table is necessary for understanding, include only a concise Markdown table. Then give suggestions for next step based on the chat history. You should list at least 3 points with exactly this bracket-number format, not a Markdown numbered list:
+ Next, you can:
+[1]Standardize the data in the next step.
+[2]Do outlier detection for the data.
+[3]Train a neural network model.
+- If the inspector says the request is not completed or there are important issues, write the corrected Python code wrapped in one ```python``` block. Do not write expected results, tables, charts, or a final explanation after the code, because the system will execute the code and inspect the new result again.
+- If you write code, it must be executable Python in a fenced ```python``` block. Never output raw/unfenced code.
+"""
 
 # RECOMMEND_PROMPT = "You should give suggestions for next step based on the chat history. You should list at least 3 points with format like:\n Next, you can:\n[1]Standardize the data in the next step.\n[2]Do outlier detection for the data.\n[3]Train a neural network model."
 
-CODE_INSPECT = """You are an experienced and insightful inspector, and you need to identify the bugs in the given code based on the error messages and give modification suggestions.
+CODE_INSPECT = """You are an experienced and insightful inspector. After every programmer code execution, you must check whether the code and execution result satisfy the user's request and give one concrete suggestion to the programmer.
 
-- bug code:
-{bug_code}
+Task context:
+{task_context}
 
-When executing above code, errors occurred: {error_message}.
-Please check the implementation of the function and provide a method for modification based on the error message. No need to provide the modified code.
+Programmer code:
+{code}
 
-Modification method:
+Execution result or error message:
+{execution_result}
+
+Please provide exactly one review suggestion to the programmer. The suggestion must include:
+1. Whether the user's request has been completed.
+2. Which user requirements are still incomplete, if any.
+3. Which parts of the implementation or result are poor, fragile, unclear, or need improvement.
+4. Whether the programmer can stop and provide the final response to the user now.
+
+If code changes are needed, describe the modification method. Do not provide the modified code.
+
+Inspector suggestion:
 """
 
 CODE_FIX = """You should attempt to fix the bugs in the bellow code based on the provided error information and the method for modification. Please make sure to carefully check every potentially problematic area and make appropriate adjustments and corrections.

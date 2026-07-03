@@ -6,11 +6,13 @@ from utils.utils import to_absolute_path
 
 def launch_app():
     Lambda = LAMBDA(config_path='config.yaml')
+    config = Lambda.config
     with gr.Blocks(theme=gr.themes.Soft(), css=css, js=js) as demo:
 
         with gr.Tab("LAMBDA"):
             gr.HTML("<H1>Welcome to LAMBDA! Easy Data Analysis!</H1>")
             chatbot = gr.Chatbot(value=Lambda.conv.chat_history_display, height=600, label="LAMBDA", show_copy_button=True, type="tuples")
+            upload_status = gr.HTML("")
             with gr.Group():
                 with gr.Row(equal_height=True):
                     upload_btn = gr.UploadButton(label="Upload Data", scale=1)
@@ -36,7 +38,7 @@ def launch_app():
 
             df = gr.Dataframe(visible=False, elem_id="df", elem_classes="df")
 
-            upload_btn.upload(fn=Lambda.add_file, inputs=upload_btn)
+            upload_btn.upload(fn=Lambda.add_file, inputs=upload_btn, outputs=upload_status)
             msg.submit(Lambda.chat_streaming, [msg, chatbot], [msg, chatbot], queue=False).then(
                 Lambda.conv.stream_workflow, chatbot, chatbot
             )
@@ -56,22 +58,23 @@ def launch_app():
         with gr.Tab("Configuration"):
             gr.Markdown("# System Configuration for LAMBDA")
             with gr.Row():
-                conv_model = gr.Textbox(value="gpt-5-mini", label="Conversation Model")
-                programmer_model = gr.Textbox(value="gpt-4.1-mini", label="Programmer Model")
-                inspector_model = gr.Textbox(value="gpt-4.1-mini", label="Inspector Model")
+                conv_model = gr.Textbox(value=config.get("conv_model", ""), label="Conversation Model")
+                programmer_model = gr.Textbox(value=config.get("programmer_model", ""), label="Programmer Model")
+                inspector_model = gr.Textbox(value=config.get("inspector_model", ""), label="Inspector Model")
             
-            api_key = gr.Textbox(label="API Key", type="password", placeholder="Input Your API key")
+            api_key = gr.Textbox(value=config.get("api_key", ""), label="API Key", type="password", placeholder="Input Your API key")
             with gr.Row():
-                base_url_conv_model = gr.Textbox(value='https://api.openai.com/v1', label="Base URL (Conv Model)")
-                base_url_programmer = gr.Textbox(value='https://api.openai.com/v1', label="Base URL (Programmer)")
-                base_url_inspector = gr.Textbox(value='https://api.openai.com/v1', label="Base URL (Inspector)")
+                base_url_conv_model = gr.Textbox(value=config.get("base_url_conv_model", ""), label="Base URL (Conv Model)")
+                base_url_programmer = gr.Textbox(value=config.get("base_url_programmer", ""), label="Base URL (Programmer)")
+                base_url_inspector = gr.Textbox(value=config.get("base_url_inspector", ""), label="Base URL (Inspector)")
 
             with gr.Row():
-                max_attempts = gr.Number(value=5, label="Max Attempts", precision=0)
-                max_exe_time = gr.Number(value=18000, label="Max Execution Time (s)", precision=0)
+                max_attempts = gr.Number(value=config.get("max_attempts", 5), label="Max Attempts", precision=0)
+                max_exe_time = gr.Number(value=config.get("max_exe_time", 18000), label="Max Execution Time (s)", precision=0)
             with gr.Row():            
-                load_chat = gr.Checkbox(value=False, label="Load from Cache")
-                chat_history_path = gr.Textbox(label="Chat History Path", visible=False, interactive=True)
+                always_review = gr.Checkbox(value=config.get("always_review", config.get("inspector_review", False)), label="Always Review")
+                load_chat = gr.Checkbox(value=config.get("load_chat", False), label="Load from Cache")
+                chat_history_path = gr.Textbox(value=config.get("chat_history_path", "") or "", label="Chat History Path", visible=config.get("load_chat", False), interactive=True)
                 
             save_btn = gr.Button("Save Configuration", variant="primary")
             status_output = gr.Markdown("")
@@ -84,7 +87,7 @@ def launch_app():
                 inputs=[
                     conv_model, programmer_model, inspector_model, api_key,
                     base_url_conv_model, base_url_programmer, base_url_inspector,
-                    max_attempts, max_exe_time,
+                    max_attempts, max_exe_time, always_review,
                     load_chat, chat_history_path
                 ],
                 outputs=[status_output, chatbot]

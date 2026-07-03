@@ -54,23 +54,28 @@ class LAMBDA:
         return self.conv.show_data()
 
     def add_file(self, files):
-        file_path = files.name
-        shutil.copy(file_path, self.session_cache_path)
-        filename = os.path.basename(file_path)
-        file_extension = os.path.splitext(file_path)[1].lower()
-        self.conv.file_list.append(filename)
-        local_cache_path = os.path.join(self.session_cache_path, filename)
+        try:
+            file_path = files.name
+            shutil.copy(file_path, self.session_cache_path)
+            filename = os.path.basename(file_path)
+            file_extension = os.path.splitext(file_path)[1].lower()
+            self.conv.file_list.append(filename)
+            local_cache_path = os.path.join(self.session_cache_path, filename)
 
-        if file_extension in ['.xlsx', '.xls']:
-            self.conv.add_data(file_path)
-            gen_info = self.conv.my_data_cache.get_description()
-            self.conv.programmer.messages[0][
-                "content"] += f"\nNow, user uploads the data in {local_cache_path}\n, and here is the general information of the dataset:\n {gen_info}. \nYou should care about the missing values and type of each column in your later processing."
-        else:
-            self.conv.programmer.messages[0][
-                "content"] += f"\nNow, user uploads the files in {local_cache_path}."
+            if file_extension in ['.xlsx', '.xls']:
+                self.conv.add_data(file_path)
+                gen_info = self.conv.my_data_cache.get_description()
+                self.conv.programmer.messages[0][
+                    "content"] += f"\nNow, user uploads the data in {local_cache_path}\n, and here is the general information of the dataset:\n {gen_info}. \nYou should care about the missing values and type of each column in your later processing."
+            else:
+                self.conv.programmer.messages[0][
+                    "content"] += f"\nNow, user uploads the files in {local_cache_path}."
 
-        print(f"Upload file in gradio path: {file_path}, local cache path: {local_cache_path}")
+            print(f"Upload file in gradio path: {file_path}, local cache path: {local_cache_path}")
+            return f"<span class='upload-status success'>Uploaded {filename} successfully.</span>"
+        except Exception as e:
+            print(f"Failed to upload file: {e}")
+            return f"<span class='upload-status error'>Upload failed: {e}</span>"
 
     def rendering_code(self):
         return self.conv.rendering_code()
@@ -125,12 +130,12 @@ class LAMBDA:
 
     def update_config(self, conv_model, programmer_model, inspector_model, api_key,
                       base_url_conv_model, base_url_programmer, base_url_inspector,
-                      max_attempts, max_exe_time,
+                      max_attempts, max_exe_time, always_review,
                       load_chat, chat_history_path):
 
         self.conv.update_config(conv_model=conv_model, programmer_model=programmer_model, inspector_model=inspector_model, api_key=api_key,
                       base_url_conv_model=base_url_conv_model, base_url_programmer=base_url_programmer, base_url_inspector=base_url_inspector,
-                      max_attempts=max_attempts, max_exe_time=max_exe_time)
+                      max_attempts=max_attempts, max_exe_time=max_exe_time, always_review=always_review)
 
         if load_chat == True:
             self.config['chat_history_path'] = chat_history_path

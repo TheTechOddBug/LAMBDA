@@ -114,6 +114,7 @@ streaming : True
 project_cache_path : "cache/conv_cache/" # Local cache path
 max_attempts : 5 # The max attempts of self-correcting
 max_exe_time: 18000 # The maximum time for the execution
+always_review: False # If True, inspector reviews every successful code execution before the final response. If False, inspector only reviews execution errors.
 
 #knowledge integration
 retrieval : False # Whether to start a knowledge retrieval. If you don't create your knowledge base, you should set it to False
