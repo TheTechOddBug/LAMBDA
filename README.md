@@ -98,9 +98,9 @@ ipython kernel install --name lambda --user
 #================================================================================================
 #                                       Config of the LLMs
 #================================================================================================
-conv_model : "gpt-4.1-mini" # Choose the model you want to use. We highly recommned using the advanced model.
-programmer_model : "gpt-4.1-mini" 
-inspector_model : "gpt-4.1-mini"
+conv_model : "gpt-5.5" # Choose the model you want to use. We highly recommned using the advanced model.
+programmer_model : "gpt-5.5"
+inspector_model : "gpt-5.5"
 api_key : "sk-xxxxxxx" # The API Keys you buy.
 base_url_conv_model : 'https://api.openai.com/v1' # The base url from the provider.
 base_url_programmer : 'https://api.openai.com/v1'

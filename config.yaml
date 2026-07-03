@@ -1,11 +1,11 @@
 #================================================================================================
 #                                       Config of the LLMs
 #================================================================================================
-conv_model : "gpt-5-mini" # the conversation model
-programmer_model : "gpt-4.1-mini" # the programming model
-inspector_model : "gpt-4.1-mini" # the inspector model
-api_key : ""               # Set your API Key here.
-base_url_conv_model : 'https://api.openai.com/v1'
+conv_model : "gpt-5.5" # Choose the model you want to use. We highly recommned using the advanced model.
+programmer_model : "gpt-5.5"
+inspector_model : "gpt-5.5"
+api_key : "sk-xxxxxxx" # The API Keys you buy.
+base_url_conv_model : 'https://api.openai.com/v1' # The base url from the provider.
 base_url_programmer : 'https://api.openai.com/v1'
 base_url_inspector : 'https://api.openai.com/v1'
 
@@ -13,11 +13,13 @@ base_url_inspector : 'https://api.openai.com/v1'
 #================================================================================================
 #                                       Config of the system
 #================================================================================================
-project_cache_path : "cache/conv_cache/" # local cache path
+streaming : True
+project_cache_path : "cache/conv_cache/" # Local cache path
 max_attempts : 5 # The max attempts of self-correcting
-max_exe_time: 18000 # max time for the execution
+max_exe_time: 18000 # The maximum time for the execution
+always_review: True # If True, inspector reviews every successful code execution before the final response. If False, inspector only reviews execution errors.
 load_chat: False # whether to load the dialogue from the local cache
 chat_history_path: "" # The path of the chat history, effective if load_chat is True.
 
 #knowledge integration
-retrieval : False # whether to start a knowledge retrieval. If you don't create your knowledge base, you should set it to False
+retrieval : False # Whether to start a knowledge retrieval. If you don't create your knowledge base, you should set it to False
